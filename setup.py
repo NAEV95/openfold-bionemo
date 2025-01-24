@@ -52,7 +52,7 @@ def get_cuda_bare_metal_version(cuda_dir):
         return raw_output, bare_metal_major, bare_metal_minor
 
 compute_capabilities = set([
-    (3, 7), # K80, e.g.
+    #(3, 7), # K80, e.g.
     (5, 2), # Titan X
     (6, 1), # GeForce 1000-series
 ])
@@ -73,9 +73,9 @@ for major, minor in list(compute_capabilities):
         f'arch=compute_{major}{minor},code=sm_{major}{minor}',
     ])
 
-extra_cuda_flags += cc_flag
+extra_cuda_flags.extend(cc_flag)
 
-cc_flag = ['-gencode', 'arch=compute_70,code=sm_70']
+cc_flag = ['-gencode', 'arch=compute_60,code=sm_60', '-gencode', 'arch=compute_70,code=sm_70', '-gencode', 'arch=compute_80,code=sm_80']
 
 if bare_metal_major != -1:
     modules = [CUDAExtension(
