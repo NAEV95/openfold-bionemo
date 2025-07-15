@@ -29,7 +29,8 @@ def enforce_config_constraints(config):
         (
             "globals.use_lma",
             "globals.use_flash",
-            "globals.use_deepspeed_evo_attention"
+            "globals.use_deepspeed_evo_attention",
+            "globals.use_cuequivariance"
         ),
     ]
 
@@ -50,6 +51,10 @@ def enforce_config_constraints(config):
             "use_deepspeed_evo_attention requires that DeepSpeed be installed "
             "and that the deepspeed.ops.deepspeed4science package exists"
         )
+
+    cuequivariance_is_installed = importlib.util.find_spec("cuequivariance_torch") is not None
+    if config.globals.use_cuequivariance and not cuequivariance_is_installed:
+        raise ValueError("use_cuequivariance requires that cuequivariance_torch is installed")
 
     if(
         config.globals.offload_inference and 
@@ -475,6 +480,10 @@ config = mlc.ConfigDict(
             # use_deepspeed_evo_attention and use_lma. Doesn't work that well
             # on long sequences (>1000 residues).
             "use_flash": False,
+            # Use cuEquivariance kernels for accelerated triangle attention and
+            # triangle multiplicative update operations. Requires CUDA and 
+            # cuequivariance_torch package.
+            "use_cuequivariance": False,
             "offload_inference": False,
             "c_z": c_z,
             "c_m": c_m,

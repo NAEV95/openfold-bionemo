@@ -644,6 +644,7 @@ class TemplateEmbedder(nn.Module):
         )
         self.template_pair_stack = TemplatePairStack(
             **config["template_pair_stack"],
+            use_cuequivariance=config.use_cuequivariance,
         )
         self.template_pointwise_att = TemplatePointwiseAttention(
             **config["template_pointwise_attention"],
@@ -883,6 +884,7 @@ class TemplateEmbedderMultimer(nn.Module):
         )
         self.template_pair_stack = TemplatePairStack(
             **config["template_pair_stack"],
+            use_cuequivariance=config.use_cuequivariance,
         )
 
         self.linear_t = Linear(config.c_t, config.c_z)

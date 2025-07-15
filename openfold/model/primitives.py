@@ -30,6 +30,13 @@ if fa_is_installed:
     from flash_attn.bert_padding import unpad_input
     from flash_attn.flash_attn_interface import flash_attn_varlen_kvpacked_func
 
+cuequivariance_is_installed = importlib.util.find_spec("cuequivariance_torch") is not None
+if cuequivariance_is_installed:
+    try:
+        from cuequivariance_torch.primitives.triangle import triangle_attention
+    except ImportError:
+        cuequivariance_is_installed = False
+
 import torch
 import torch.nn as nn
 from scipy.stats import truncnorm
@@ -456,7 +463,9 @@ class Attention(nn.Module):
         lma_q_chunk_size: int = DEFAULT_LMA_Q_CHUNK_SIZE,
         lma_kv_chunk_size: int = DEFAULT_LMA_KV_CHUNK_SIZE,
         use_flash: bool = False,
-        flash_mask: Optional[torch.Tensor] = None
+        flash_mask: Optional[torch.Tensor] = None,
+        use_cuequivariance: bool = False,
+        cuequivariance_mask: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Args:
@@ -483,6 +492,12 @@ class Attention(nn.Module):
                 Query chunk size (for LMA)
             lma_kv_chunk_size:
                 Key/Value chunk size (for LMA)
+            use_cuequivariance:
+                Whether to use cuEquivariance triangle attention kernel.
+                If none of the "use_<...>" flags are True, a stock PyTorch
+                implementation is used instead
+            cuequivariance_mask:
+                Mask tensor for cuEquivariance attention (for masking invalid positions)
         Returns
             [*, Q, C_q] attention update
         """
@@ -498,7 +513,12 @@ class Attention(nn.Module):
                 "use flash_mask instead"
             )
 
-        attn_options = [use_memory_efficient_kernel, use_deepspeed_evo_attention, use_lma, use_flash]
+        if use_cuequivariance and (biases is None or len(biases) != 1):
+            raise ValueError(
+                "cuEquivariance attention requires exactly one bias term"
+            )
+
+        attn_options = [use_memory_efficient_kernel, use_deepspeed_evo_attention, use_lma, use_flash, use_cuequivariance]
         if sum(attn_options) > 1:
             raise ValueError(
                 "Choose at most one alternative attention algorithm"
@@ -538,6 +558,8 @@ class Attention(nn.Module):
             o = o.transpose(-2, -3)
         elif use_flash:
             o = _flash_attn(q, k, v, flash_mask)
+        elif use_cuequivariance:
+            o = _cuequivariance_attn(q, k, v, biases[0], cuequivariance_mask)
         else:
             o = _attention(q, k, v, biases)
             o = o.transpose(-2, -3)
@@ -828,3 +850,93 @@ def _flash_attn(q, k, v, kv_mask):
     out = out.to(dtype=dtype)
 
     return out
+
+
+@torch.jit.ignore
+def _cuequivariance_attn(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    bias: torch.Tensor,
+    mask: Optional[torch.Tensor] = None,
+):
+    """
+    Compute attention using the cuEquivariance triangle attention kernel.
+    
+    Args:
+        q: [*, H, Q, C_hidden] query data
+        k: [*, H, K, C_hidden] key data  
+        v: [*, H, V, C_hidden] value data
+        bias: [*, H, Q, K] triangular bias
+        mask: [*, Q, K] mask for masking invalid positions
+    
+    Returns:
+        [*, H, Q, C_hidden] attention output
+    """
+    if not cuequivariance_is_installed:
+        raise ValueError(
+            "_cuequivariance_attn requires that cuequivariance_torch be installed"
+        )
+    
+    # cuEquivariance expects inputs in format [B, N, H, Q, D]
+    # Current format is [*, H, Q, C_hidden]
+    
+    # Get original shape for reshaping
+    orig_shape = q.shape
+    batch_dims = orig_shape[:-3]
+    
+    # Reshape to [B, N, H, Q, D] format expected by cuEquivariance
+    # For triangle attention, N (seq_len) = Q = K
+    if len(batch_dims) == 0:
+        # Add batch dimension if missing
+        q = q.unsqueeze(0)  # [1, H, Q, D]
+        k = k.unsqueeze(0)  # [1, H, K, D]
+        v = v.unsqueeze(0)  # [1, H, V, D]
+        bias = bias.unsqueeze(0)  # [1, H, Q, K]
+        if mask is not None:
+            mask = mask.unsqueeze(0)  # [1, Q, K]
+    
+    # Transpose to match cuEquivariance format [B, Q, H, D]
+    q = q.transpose(-2, -3)  # [B, Q, H, D]
+    k = k.transpose(-2, -3)  # [B, K, H, D]
+    v = v.transpose(-2, -3)  # [B, V, H, D]
+    
+    # For triangle attention, we need to expand to [B, N, H, Q, D]
+    # where N is the sequence length (same as Q/K for square attention)
+    seq_len = q.shape[-3]
+    q = q.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, Q, D]
+    k = k.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, K, D]
+    v = v.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, V, D]
+    
+    # Adjust bias shape to [B, 1, H, Q, K] (cuEquivariance expects 5D bias)
+    bias = bias.unsqueeze(1)  # [B, 1, H, Q, K]
+    
+    # Adjust mask shape to [B, N, 1, 1, K] if provided
+    if mask is not None:
+        # mask is currently [B, Q, K], we need [B, N, 1, 1, K]
+        # Take the last dimension (K) and expand to [B, N, 1, 1, K]
+        mask = mask[:, :, -1].unsqueeze(1).expand(-1, seq_len, -1).unsqueeze(2).unsqueeze(3)  # [B, N, 1, 1, K]
+    
+    # Apply cuEquivariance triangle attention
+    scale = 1.0 / math.sqrt(q.shape[-1])
+    o = triangle_attention(
+        q=q,
+        k=k,
+        v=v,
+        bias=bias,
+        mask=mask,
+        scale=scale
+    )
+    
+    # Reshape back to original format
+    # o is [B, N, H, Q, D], we want [*, H, Q, D]
+    # Take the first slice of the N dimension
+    o = o[:, 0, :, :, :]  # [B, H, Q, D]
+    o = o.transpose(-2, -3)  # [B, Q, H, D]
+    
+    # Remove batch dimension if it was added
+    if len(batch_dims) == 0:
+        o = o.squeeze(0)  # [Q, H, D]
+        o = o.transpose(-2, -3)  # [H, Q, D]
+    
+    return o

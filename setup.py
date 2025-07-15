@@ -127,6 +127,12 @@ setup(
     },
     ext_modules=modules,
     cmdclass={'build_ext': BuildExtension},
+    extras_require={
+        'cuequivariance': [
+            'cuequivariance-torch; sys_platform != "darwin"',  # Not available on macOS
+            'triton>=3.3.0; sys_platform != "darwin"',  # Required for triangle multiplicative update
+        ],
+    },
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
         'Operating System :: POSIX :: Linux',

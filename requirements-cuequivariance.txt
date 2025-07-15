@@ -1,0 +1,17 @@
+# cuEquivariance optional dependencies for OpenFold-BioNeMo
+# Install these to enable cuEquivariance accelerated triangle operations
+# 
+# Installation:
+# pip install -r requirements-cuequivariance.txt
+#
+# Or install as optional dependency:
+# pip install -e .[cuequivariance]
+
+# Main cuEquivariance library
+cuequivariance-torch
+
+# Required for triangle multiplicative update kernels
+triton>=3.3.0
+
+# Note: These packages require CUDA and are not available on macOS
+# They also require compatible PyTorch and CUDA versions

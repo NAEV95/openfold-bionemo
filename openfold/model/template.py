@@ -158,6 +158,7 @@ class TemplatePairStackBlock(nn.Module):
         tri_mul_first: bool,
         fuse_projection_weights: bool,
         inf: float,
+        use_cuequivariance: bool = False,
         **kwargs,
     ):
         super(TemplatePairStackBlock, self).__init__()
@@ -179,31 +180,37 @@ class TemplatePairStackBlock(nn.Module):
             self.c_hidden_tri_att,
             self.no_heads,
             inf=inf,
+            use_cuequivariance=use_cuequivariance,
         )
         self.tri_att_end = TriangleAttentionEndingNode(
             self.c_t,
             self.c_hidden_tri_att,
             self.no_heads,
             inf=inf,
+            use_cuequivariance=use_cuequivariance,
         )
 
         if fuse_projection_weights:
             self.tri_mul_out = FusedTriangleMultiplicationOutgoing(
                 self.c_t,
                 self.c_hidden_tri_mul,
+                use_cuequivariance=use_cuequivariance,
             )
             self.tri_mul_in = FusedTriangleMultiplicationIncoming(
                 self.c_t,
                 self.c_hidden_tri_mul,
+                use_cuequivariance=use_cuequivariance,
             )
         else:
             self.tri_mul_out = TriangleMultiplicationOutgoing(
                 self.c_t,
                 self.c_hidden_tri_mul,
+                use_cuequivariance=use_cuequivariance,
             )
             self.tri_mul_in = TriangleMultiplicationIncoming(
                 self.c_t,
                 self.c_hidden_tri_mul,
+                use_cuequivariance=use_cuequivariance,
             )
 
         self.pair_transition = PairTransition(
@@ -361,6 +368,7 @@ class TemplatePairStack(nn.Module):
         blocks_per_ckpt,
         tune_chunk_size: bool = False,
         inf=1e9,
+        use_cuequivariance: bool = False,
         **kwargs,
     ):
         """
@@ -397,6 +405,7 @@ class TemplatePairStack(nn.Module):
                 tri_mul_first=tri_mul_first,
                 fuse_projection_weights=fuse_projection_weights,
                 inf=inf,
+                use_cuequivariance=use_cuequivariance,
             )
             self.blocks.append(block)
 

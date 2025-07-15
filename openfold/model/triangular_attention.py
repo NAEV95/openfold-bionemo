@@ -66,6 +66,8 @@ class TriangleAttention(nn.Module):
         use_deepspeed_evo_attention: bool = False,
         use_lma: bool = False,
         inplace_safe: bool = False,
+        use_cuequivariance: bool = False,
+        cuequivariance_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         "triangle! triangle!"
         mha_inputs = {
@@ -79,7 +81,9 @@ class TriangleAttention(nn.Module):
                 self.mha, 
                 use_memory_efficient_kernel=use_memory_efficient_kernel,
                 use_deepspeed_evo_attention=use_deepspeed_evo_attention,
-                use_lma=use_lma
+                use_lma=use_lma,
+                use_cuequivariance=use_cuequivariance,
+                cuequivariance_mask=cuequivariance_mask
             ),
             mha_inputs,
             chunk_size=chunk_size,
@@ -95,6 +99,7 @@ class TriangleAttention(nn.Module):
         use_deepspeed_evo_attention: bool = False,
         use_lma: bool = False,
         inplace_safe: bool = False,
+        use_cuequivariance: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -126,6 +131,13 @@ class TriangleAttention(nn.Module):
         triangle_bias = triangle_bias.unsqueeze(-4)
 
         biases = [mask_bias, triangle_bias]
+        
+        # For cuEquivariance, we need only the triangle bias
+        if use_cuequivariance:
+            biases = [triangle_bias]
+            cuequivariance_mask = mask  # Use the original mask for cuEquivariance
+        else:
+            cuequivariance_mask = None
 
         if chunk_size is not None:
             x = self._chunk(
@@ -136,6 +148,8 @@ class TriangleAttention(nn.Module):
                 use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                 use_lma=use_lma,
                 inplace_safe=inplace_safe,
+                use_cuequivariance=use_cuequivariance,
+                cuequivariance_mask=cuequivariance_mask,
             )
         else:
             x = self.mha(
@@ -144,7 +158,9 @@ class TriangleAttention(nn.Module):
                 biases=biases, 
                 use_memory_efficient_kernel=use_memory_efficient_kernel,
                 use_deepspeed_evo_attention=use_deepspeed_evo_attention,
-                use_lma=use_lma
+                use_lma=use_lma,
+                use_cuequivariance=use_cuequivariance,
+                cuequivariance_mask=cuequivariance_mask
             )
 
         if(not self.starting):
