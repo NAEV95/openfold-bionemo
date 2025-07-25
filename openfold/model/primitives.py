@@ -878,65 +878,51 @@ def _cuequivariance_attn(
             "_cuequivariance_attn requires that cuequivariance_torch be installed"
         )
     
-    # cuEquivariance expects inputs in format [B, N, H, Q, D]
-    # Current format is [*, H, Q, C_hidden]
+    # Check input dimensionality
+    qdim = len(q.shape)
     
-    # Get original shape for reshaping
-    orig_shape = q.shape
-    batch_dims = orig_shape[:-3]
-    
-    # Reshape to [B, N, H, Q, D] format expected by cuEquivariance
-    # For triangle attention, N (seq_len) = Q = K
-    if len(batch_dims) == 0:
-        # Add batch dimension if missing
+    # If we have 4D tensors ([*, H, Q, D]), add batch dimension
+    if qdim == 4:
         q = q.unsqueeze(0)  # [1, H, Q, D]
-        k = k.unsqueeze(0)  # [1, H, K, D]
+        k = k.unsqueeze(0)  # [1, H, K, D] 
         v = v.unsqueeze(0)  # [1, H, V, D]
         bias = bias.unsqueeze(0)  # [1, H, Q, K]
         if mask is not None:
             mask = mask.unsqueeze(0)  # [1, Q, K]
+    elif len(q.shape[:-3]) > 2:
+        # If there are more than 2 leading dimensions, flatten them into B*N
+        batch_shape = q.shape[:-3]
+        flat_batch_size = 1
+        for dim in batch_shape:
+            flat_batch_size *= dim
+        
+        q = q.reshape(flat_batch_size, *q.shape[-3:])
+        k = k.reshape(flat_batch_size, *k.shape[-3:])
+        v = v.reshape(flat_batch_size, *v.shape[-3:])
+        bias = bias.reshape(flat_batch_size, *bias.shape[-3:])
+        if mask is not None:
+            mask = mask.reshape(flat_batch_size, *mask.shape[-2:])
     
-    # Transpose to match cuEquivariance format [B, Q, H, D]
-    q = q.transpose(-2, -3)  # [B, Q, H, D]
-    k = k.transpose(-2, -3)  # [B, K, H, D]
-    v = v.transpose(-2, -3)  # [B, V, H, D]
-    
-    # For triangle attention, we need to expand to [B, N, H, Q, D]
-    # where N is the sequence length (same as Q/K for square attention)
-    seq_len = q.shape[-3]
-    q = q.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, Q, D]
-    k = k.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, K, D]
-    v = v.unsqueeze(1).expand(-1, seq_len, -1, -1, -1).transpose(-2, -3)  # [B, N, H, V, D]
-    
-    # Adjust bias shape to [B, 1, H, Q, K] (cuEquivariance expects 5D bias)
-    bias = bias.unsqueeze(1)  # [B, 1, H, Q, K]
-    
-    # Adjust mask shape to [B, N, 1, 1, K] if provided
+    # Convert bias to float32 and handle mask
+    bias = bias.to(dtype=torch.float32)
     if mask is not None:
-        # mask is currently [B, Q, K], we need [B, N, 1, 1, K]
-        # Take the last dimension (K) and expand to [B, N, 1, 1, K]
-        mask = mask[:, :, -1].unsqueeze(1).expand(-1, seq_len, -1).unsqueeze(2).unsqueeze(3)  # [B, N, 1, 1, K]
+        mask = mask == 0.0  # Convert to boolean mask (True means masked)
     
     # Apply cuEquivariance triangle attention
-    scale = 1.0 / math.sqrt(q.shape[-1])
     o = triangle_attention(
         q=q,
-        k=k,
+        k=k, 
         v=v,
         bias=bias,
         mask=mask,
-        scale=scale
+        scale=1.0
     )
     
-    # Reshape back to original format
-    # o is [B, N, H, Q, D], we want [*, H, Q, D]
-    # Take the first slice of the N dimension
-    o = o[:, 0, :, :, :]  # [B, H, Q, D]
-    o = o.transpose(-2, -3)  # [B, Q, H, D]
+    # If we added a batch dimension for 4D inputs, remove it
+    if qdim == 4:
+        o = o.squeeze(0)
     
-    # Remove batch dimension if it was added
-    if len(batch_dims) == 0:
-        o = o.squeeze(0)  # [Q, H, D]
-        o = o.transpose(-2, -3)  # [H, Q, D]
+    # Final transpose to match expected output format
+    o = o.transpose(-2, -3) 
     
     return o

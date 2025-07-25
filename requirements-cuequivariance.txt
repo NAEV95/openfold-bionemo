@@ -12,6 +12,3 @@ cuequivariance-torch
 
 # Required for triangle multiplicative update kernels
 triton>=3.3.0
-
-# Note: These packages require CUDA and are not available on macOS
-# They also require compatible PyTorch and CUDA versions
