@@ -131,7 +131,8 @@ class PairStack(nn.Module):
         pair_dropout: float,
         fuse_projection_weights: bool,
         inf: float,
-        eps: float
+        eps: float,
+        use_cuequivariance: bool = False,
     ):
         super(PairStack, self).__init__()
 
@@ -139,19 +140,23 @@ class PairStack(nn.Module):
             self.tri_mul_out = FusedTriangleMultiplicationOutgoing(
                 c_z,
                 c_hidden_mul,
+                use_cuequivariance=use_cuequivariance,
             )
             self.tri_mul_in = FusedTriangleMultiplicationIncoming(
                 c_z,
                 c_hidden_mul,
+                use_cuequivariance=use_cuequivariance,
             )
         else:
             self.tri_mul_out = TriangleMultiplicationOutgoing(
                 c_z,
                 c_hidden_mul,
+                use_cuequivariance=use_cuequivariance,
             )
             self.tri_mul_in = TriangleMultiplicationIncoming(
                 c_z,
                 c_hidden_mul,
+                use_cuequivariance=use_cuequivariance,
             )
 
         self.tri_att_start = TriangleAttention(
@@ -159,12 +164,14 @@ class PairStack(nn.Module):
             c_hidden_pair_att,
             no_heads_pair,
             inf=inf,
+            use_cuequivariance=use_cuequivariance,
         )
         self.tri_att_end = TriangleAttention(
             c_z,
             c_hidden_pair_att,
             no_heads_pair,
             inf=inf,
+            use_cuequivariance=use_cuequivariance,
         )
 
         self.pair_transition = PairTransition(
@@ -284,6 +291,7 @@ class MSABlock(nn.Module, ABC):
         fuse_projection_weights: bool,
         inf: float,
         eps: float,
+        use_cuequivariance: bool = False,
     ):
         super(MSABlock, self).__init__()
 
@@ -319,7 +327,8 @@ class MSABlock(nn.Module, ABC):
             pair_dropout=pair_dropout,
             fuse_projection_weights=fuse_projection_weights,
             inf=inf,
-            eps=eps
+            eps=eps,
+            use_cuequivariance=use_cuequivariance,
         )
 
     def _compute_opm(self,
@@ -392,6 +401,7 @@ class EvoformerBlock(MSABlock):
         fuse_projection_weights: bool,
         inf: float,
         eps: float,
+        use_cuequivariance: bool = False,
     ):
         super(EvoformerBlock, self).__init__(c_m=c_m,
                                              c_z=c_z,
@@ -407,7 +417,8 @@ class EvoformerBlock(MSABlock):
                                              opm_first=opm_first,
                                              fuse_projection_weights=fuse_projection_weights,
                                              inf=inf,
-                                             eps=eps)
+                                             eps=eps,
+                                             use_cuequivariance=use_cuequivariance)
 
         # Specifically, seqemb mode does not use column attention
         self.no_column_attention = no_column_attention
@@ -775,6 +786,7 @@ class EvoformerStack(nn.Module):
         eps: float,
         clear_cache_between_blocks: bool = False, 
         tune_chunk_size: bool = False,
+        use_cuequivariance: bool = False,
         **kwargs,
     ):
         """
@@ -849,6 +861,7 @@ class EvoformerStack(nn.Module):
                 fuse_projection_weights=fuse_projection_weights,
                 inf=inf,
                 eps=eps,
+                use_cuequivariance=use_cuequivariance,
             )
             self.blocks.append(block)
 

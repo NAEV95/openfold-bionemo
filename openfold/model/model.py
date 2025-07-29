@@ -14,6 +14,7 @@
 # limitations under the License.
 from functools import partial
 import weakref
+import copy
 
 import torch
 import torch.nn as nn
@@ -104,13 +105,17 @@ class AlphaFold(nn.Module):
         )
 
         if self.template_config.enabled:
+            # Add global use_cuequivariance flag to template config
+            template_config_with_globals = copy.deepcopy(self.template_config)
+            template_config_with_globals.use_cuequivariance = self.globals.use_cuequivariance
+            
             if self.globals.is_multimer:
                 self.template_embedder = TemplateEmbedderMultimer(
-                    self.template_config,
+                    template_config_with_globals,
                 )
             else:
                 self.template_embedder = TemplateEmbedder(
-                    self.template_config,
+                    template_config_with_globals,
                 )
 
         if self.extra_msa_config.enabled:
@@ -123,6 +128,7 @@ class AlphaFold(nn.Module):
 
         self.evoformer = EvoformerStack(
             **self.config["evoformer_stack"],
+            use_cuequivariance=self.globals.use_cuequivariance,
         )
 
         self.structure_module = StructureModule(

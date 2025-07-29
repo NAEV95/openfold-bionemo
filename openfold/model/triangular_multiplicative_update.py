@@ -16,6 +16,7 @@
 from functools import partialmethod
 from typing import Optional
 from abc import ABC, abstractmethod
+import importlib
 
 import torch
 import torch.nn as nn
@@ -24,6 +25,69 @@ from openfold.model.primitives import Linear, LayerNorm
 from openfold.utils.chunk_utils import chunk_layer
 from openfold.utils.precision_utils import is_fp16_enabled
 from openfold.utils.tensor_utils import add, permute_final_dims
+
+# cuEquivariance import handling
+cuequivariance_is_installed = importlib.util.find_spec("cuequivariance_torch") is not None
+if cuequivariance_is_installed:
+    try:
+        from cuequivariance_torch.primitives.triangle import triangle_multiplicative_update
+    except ImportError:
+        cuequivariance_is_installed = False
+
+
+def _cuequivariance_triangular_mult(
+    x: torch.Tensor,
+    direction: str,
+    mask: Optional[torch.Tensor],
+    norm_in_weight: torch.Tensor,
+    norm_in_bias: torch.Tensor,
+    p_in_weight: torch.Tensor,
+    g_in_weight: torch.Tensor,
+    norm_out_weight: torch.Tensor,
+    norm_out_bias: torch.Tensor,
+    p_out_weight: torch.Tensor,
+    g_out_weight: torch.Tensor,
+    eps: float = 1e-5,
+):
+    """
+    Wrapper function for cuEquivariance triangle multiplicative update.
+    
+    Args:
+        x: [*, N, N, C] input tensor
+        direction: "outgoing" or "incoming" 
+        mask: [*, N, N] mask tensor
+        norm_in_weight: [C] input normalization weight
+        norm_in_bias: [C] input normalization bias
+        p_in_weight: [2*C, C] input projection weight
+        g_in_weight: [2*C, C] input gating weight
+        norm_out_weight: [C] output normalization weight
+        norm_out_bias: [C] output normalization bias
+        p_out_weight: [C, C] output projection weight
+        g_out_weight: [C, C] output gating weight
+        eps: epsilon for numerical stability
+    
+    Returns:
+        [*, N, N, C] output tensor
+    """
+    if not cuequivariance_is_installed:
+        raise ValueError(
+            "_cuequivariance_triangular_mult requires that cuequivariance_torch be installed"
+        )
+    
+    return triangle_multiplicative_update(
+        x=x,
+        direction=direction,
+        mask=mask,
+        norm_in_weight=norm_in_weight,
+        norm_in_bias=norm_in_bias,
+        p_in_weight=p_in_weight,
+        g_in_weight=g_in_weight,
+        norm_out_weight=norm_out_weight,
+        norm_out_bias=norm_out_bias,
+        p_out_weight=p_out_weight,
+        g_out_weight=g_out_weight,
+        eps=eps,
+    )
 
 
 class BaseTriangleMultiplicativeUpdate(nn.Module, ABC):
@@ -399,6 +463,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
         inplace_safe: bool = False,
         _add_with_inplace: bool = False,
         _inplace_chunk_size: Optional[int] = 256,
+        use_cuequivariance: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -420,6 +485,26 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
 
         if mask is None:
             mask = z.new_ones(z.shape[:-1])
+
+        if use_cuequivariance:
+            direction = "outgoing" if self._outgoing else "incoming"
+            # Concatenate linear_a_p and linear_b_p weights for cuEquivariance
+            p_in_weight = torch.cat([self.linear_a_p.weight, self.linear_b_p.weight], dim=0)
+            g_in_weight = torch.cat([self.linear_a_g.weight, self.linear_b_g.weight], dim=0)
+            return _cuequivariance_triangular_mult(
+                x=z,
+                direction=direction,
+                mask=mask,
+                norm_in_weight=self.layer_norm_in.weight,
+                norm_in_bias=self.layer_norm_in.bias,
+                p_in_weight=p_in_weight,
+                g_in_weight=g_in_weight,
+                norm_out_weight=self.layer_norm_out.weight,
+                norm_out_bias=self.layer_norm_out.bias,
+                p_out_weight=self.linear_z.weight,
+                g_out_weight=self.linear_g.weight,
+                eps=1e-5,
+            )
 
         mask = mask.unsqueeze(-1)
         
@@ -546,7 +631,8 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                 mask: Optional[torch.Tensor] = None,
                 inplace_safe: bool = False,
                 _add_with_inplace: bool = False,
-                _inplace_chunk_size: Optional[int] = 256
+                _inplace_chunk_size: Optional[int] = 256,
+                use_cuequivariance: bool = False,
                 ) -> torch.Tensor:
         """
         Args:
@@ -568,6 +654,23 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
 
         if mask is None:
             mask = z.new_ones(z.shape[:-1])
+
+        if use_cuequivariance:
+            direction = "outgoing" if self._outgoing else "incoming"
+            return _cuequivariance_triangular_mult(
+                x=z,
+                direction=direction,
+                mask=mask,
+                norm_in_weight=self.layer_norm_in.weight,
+                norm_in_bias=self.layer_norm_in.bias,
+                p_in_weight=self.linear_ab_p.weight,
+                g_in_weight=self.linear_ab_g.weight,
+                norm_out_weight=self.layer_norm_out.weight,
+                norm_out_bias=self.layer_norm_out.bias,
+                p_out_weight=self.linear_z.weight,
+                g_out_weight=self.linear_g.weight,
+                eps=1e-5,
+            )
 
         mask = mask.unsqueeze(-1)
 

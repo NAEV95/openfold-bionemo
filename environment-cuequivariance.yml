@@ -1,4 +1,4 @@
-name: openfold-env 
+name: openfold-cuequivariance-env
 channels:
   - conda-forge
   - bioconda
@@ -36,7 +36,6 @@ dependencies:
       - dm-tree==0.1.6
       - git+https://github.com/NVIDIA/dllogger.git
       - git+https://github.com/Dao-AILab/flash-attention.git@5b838a8
-      # Optional cuEquivariance dependencies for accelerated triangle operations
-      # Uncomment the following lines to enable cuEquivariance support:
-      # - cuequivariance-torch  # Main cuEquivariance library
-      # - triton>=3.3.0  # Required for triangle multiplicative update kernels
+      # cuEquivariance dependencies for accelerated triangle operations
+      - cuequivariance-torch  # Main cuEquivariance library
+      - triton>=3.3.0  # Required for triangle multiplicative update kernels
