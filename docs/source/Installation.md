@@ -4,7 +4,7 @@ In this guide, we will OpenFold and its dependencies.
 
 **Pre-requisites**
 
-This package is currently supported for CUDA 11 and Pytorch 1.12. All dependencies are listed in the [`environment.yml`](https://github.com/aqlaboratory/openfold/blob/main/environment.yml). To install OpenFold for CUDA 12, please refer to the [Environment specific modifications](#Environment-specific-modifications) section.
+This package is currently supported for CUDA 12 and Pytorch 2. All dependencies are listed in the [`environment.yml`](https://github.com/aqlaboratory/openfold/blob/main/environment.yml).
 
 At this time, only Linux systems are supported.
 
@@ -19,7 +19,7 @@ At this time, only Linux systems are supported.
       Mamba is recommended as the dependencies required by OpenFold are quite large and mamba can speed up the process.
     - Activate the environment, e.g `conda activate openfold_env`
 1. Run the setup script to configure kernels and folding resources.
-	> scripts/install_third_party_dependencies.sh`
+	> scripts/install_third_party_dependencies.sh
 1. Prepend the conda environment to the `$LD_LIBRARY_PATH` and `$LIBRARY_PATH`., e.g. 
 
 	```
@@ -53,12 +53,6 @@ Certain tests perform equivalence comparisons with the AlphaFold implementation.
 
 ## Environment specific modifications 
 
-### CUDA 12
-To use OpenFold on CUDA 12 environment rather than a CUDA 11 environment.
-	In step 1, use the branch [`pl_upgrades`](https://github.com/aqlaboratory/openfold/tree/pl_upgrades) rather than the main branch, i.e. replace the command in step 1 with `git clone -b pl_upgrades https://github.com/aqlaboratory/openfold.git`
-	and follow the rest of the steps of [Installation Guide](#Installation)
-
-
 ### MPI
 To use OpenFold with MPI support, you will need to add the package [`mpi4py`](https://pypi.org/project/mpi4py/). This can be done with pip in your OpenFold environment, e.g. `$ pip install mpi4py`. 
 
@@ -71,4 +65,4 @@ If you don't have access to `aws` on your system, you can use a different downlo
 
 ### Docker setup
 
-A [`Dockerfile`] is provided to build an OpenFold Docker image. Additional notes for setting up a docker container for OpenFold and running inference can be found [here](original_readme.md#building-and-using-the-docker-container).
+A [`Dockerfile`](https://github.com/aqlaboratory/openfold/blob/main/Dockerfile) is provided to build an OpenFold Docker image. Additional notes for setting up a docker container for OpenFold and running inference can be found [here](original_readme.md#building-and-using-the-docker-container).
