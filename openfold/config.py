@@ -483,7 +483,7 @@ config = mlc.ConfigDict(
             # Use cuEquivariance kernels for accelerated triangle attention and
             # triangle multiplicative update operations. Requires CUDA and 
             # cuequivariance_torch package.
-            "use_cuequivariance": False,
+            "use_cuequivariance": True,
             "offload_inference": False,
             "c_z": c_z,
             "c_m": c_m,

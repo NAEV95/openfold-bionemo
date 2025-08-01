@@ -95,18 +95,21 @@ class BaseTriangleMultiplicativeUpdate(nn.Module, ABC):
     Implements Algorithms 11 and 12.
     """
     @abstractmethod
-    def __init__(self, c_z, c_hidden, _outgoing):
+    def __init__(self, c_z, c_hidden, _outgoing, use_cuequivariance=False):
         """
         Args:
             c_z:
                 Input channel dimension
             c:
                 Hidden channel dimension
+            use_cuequivariance:
+                Whether to use cuEquivariance acceleration
         """
         super(BaseTriangleMultiplicativeUpdate, self).__init__()
         self.c_z = c_z
         self.c_hidden = c_hidden
         self._outgoing = _outgoing
+        self.use_cuequivariance = use_cuequivariance
 
         self.linear_g = Linear(self.c_z, self.c_z, init="gating")
         self.linear_z = Linear(self.c_hidden, self.c_z, init="final")
@@ -169,7 +172,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
     """
     Implements Algorithms 11 and 12.
     """
-    def __init__(self, c_z, c_hidden, _outgoing=True):
+    def __init__(self, c_z, c_hidden, _outgoing=True, use_cuequivariance=False):
         """
         Args:
             c_z:
@@ -179,7 +182,8 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
         """
         super(TriangleMultiplicativeUpdate, self).__init__(c_z=c_z,
                                                            c_hidden=c_hidden,
-                                                           _outgoing=_outgoing)
+                                                           _outgoing=_outgoing,
+                                                           use_cuequivariance=use_cuequivariance)
 
         self.linear_a_p = Linear(self.c_z, self.c_hidden)
         self.linear_a_g = Linear(self.c_z, self.c_hidden, init="gating")
@@ -558,17 +562,20 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
     Implements Algorithms 11 and 12.
     """
 
-    def __init__(self, c_z, c_hidden, _outgoing=True):
+    def __init__(self, c_z, c_hidden, _outgoing=True, use_cuequivariance=False):
         """
         Args:
             c_z:
                 Input channel dimension
             c:
                 Hidden channel dimension
+            use_cuequivariance:
+                Whether to use cuEquivariance acceleration
         """
         super(FusedTriangleMultiplicativeUpdate, self).__init__(c_z=c_z,
                                                                 c_hidden=c_hidden,
-                                                                _outgoing=_outgoing)
+                                                                _outgoing=_outgoing,
+                                                                use_cuequivariance=use_cuequivariance)
 
         self.linear_ab_p = Linear(self.c_z, self.c_hidden * 2)
         self.linear_ab_g = Linear(self.c_z, self.c_hidden * 2, init="gating")

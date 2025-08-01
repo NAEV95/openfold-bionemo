@@ -30,7 +30,7 @@ from openfold.utils.tensor_utils import (
 
 class TriangleAttention(nn.Module):
     def __init__(
-        self, c_in, c_hidden, no_heads, starting=True, inf=1e9
+        self, c_in, c_hidden, no_heads, starting=True, inf=1e9, use_cuequivariance=False
     ):
         """
         Args:
@@ -48,6 +48,7 @@ class TriangleAttention(nn.Module):
         self.no_heads = no_heads
         self.starting = starting
         self.inf = inf
+        self.use_cuequivariance = use_cuequivariance
 
         self.layer_norm = LayerNorm(self.c_in)
 
