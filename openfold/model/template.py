@@ -224,7 +224,11 @@ class TemplatePairStackBlock(nn.Module):
                           single_mask: torch.Tensor,
                           use_deepspeed_evo_attention: bool,
                           use_lma: bool,
-                          inplace_safe: bool):
+                          inplace_safe: bool,
+                          use_cuequivariance: Optional[bool] = None):
+        if use_cuequivariance is None:
+            use_cuequivariance = self.tri_att_start.use_cuequivariance
+        
         single = add(single,
                      self.dropout_row(
                          self.tri_att_start(
@@ -234,6 +238,7 @@ class TemplatePairStackBlock(nn.Module):
                              use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                              use_lma=use_lma,
                              inplace_safe=inplace_safe,
+                             use_cuequivariance=use_cuequivariance,
                          )
                      ),
                      inplace_safe,
@@ -248,6 +253,7 @@ class TemplatePairStackBlock(nn.Module):
                              use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                              use_lma=use_lma,
                              inplace_safe=inplace_safe,
+                             use_cuequivariance=use_cuequivariance,
                          )
                      ),
                      inplace_safe,
@@ -258,12 +264,17 @@ class TemplatePairStackBlock(nn.Module):
     def tri_mul_out_in(self,
                        single: torch.Tensor,
                        single_mask: torch.Tensor,
-                       inplace_safe: bool):
+                       inplace_safe: bool,
+                       use_cuequivariance: Optional[bool] = None):
+        if use_cuequivariance is None:
+            use_cuequivariance = self.tri_mul_out.use_cuequivariance
+        
         tmu_update = self.tri_mul_out(
             single,
             mask=single_mask,
             inplace_safe=inplace_safe,
             _add_with_inplace=True,
+            use_cuequivariance=use_cuequivariance,
         )
         if not inplace_safe:
             single = single + self.dropout_row(tmu_update)
@@ -277,6 +288,7 @@ class TemplatePairStackBlock(nn.Module):
             mask=single_mask,
             inplace_safe=inplace_safe,
             _add_with_inplace=True,
+            use_cuequivariance=use_cuequivariance,
         )
         if not inplace_safe:
             single = single + self.dropout_row(tmu_update)
@@ -296,6 +308,7 @@ class TemplatePairStackBlock(nn.Module):
                 inplace_safe: bool = False,
                 _mask_trans: bool = True,
                 _attn_chunk_size: Optional[int] = None,
+                use_cuequivariance: Optional[bool] = None,
                 ):
         if _attn_chunk_size is None:
             _attn_chunk_size = chunk_size
@@ -314,12 +327,14 @@ class TemplatePairStackBlock(nn.Module):
             if self.tri_mul_first:
                 single = self.tri_att_start_end(single=self.tri_mul_out_in(single=single,
                                                                            single_mask=single_mask,
-                                                                           inplace_safe=inplace_safe),
+                                                                           inplace_safe=inplace_safe,
+                                                                           use_cuequivariance=use_cuequivariance),
                                                 _attn_chunk_size=_attn_chunk_size,
                                                 single_mask=single_mask,
                                                 use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                                                 use_lma=use_lma,
-                                                inplace_safe=inplace_safe)
+                                                inplace_safe=inplace_safe,
+                                                use_cuequivariance=use_cuequivariance)
             else:
                 single = self.tri_mul_out_in(
                     single=self.tri_att_start_end(single=single,
@@ -327,9 +342,11 @@ class TemplatePairStackBlock(nn.Module):
                                                   single_mask=single_mask,
                                                   use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                                                   use_lma=use_lma,
-                                                  inplace_safe=inplace_safe),
+                                                  inplace_safe=inplace_safe,
+                                                  use_cuequivariance=use_cuequivariance),
                     single_mask=single_mask,
-                    inplace_safe=inplace_safe)
+                    inplace_safe=inplace_safe,
+                    use_cuequivariance=use_cuequivariance)
 
             single = add(single,
                          self.pair_transition(
@@ -425,6 +442,7 @@ class TemplatePairStack(nn.Module):
         use_lma: bool = False,
         inplace_safe: bool = False,
         _mask_trans: bool = True,
+        use_cuequivariance: Optional[bool] = None,
     ):
         """
         Args:
@@ -449,6 +467,7 @@ class TemplatePairStack(nn.Module):
                 use_lma=use_lma,
                 inplace_safe=inplace_safe,
                 _mask_trans=_mask_trans,
+                use_cuequivariance=use_cuequivariance,
             )
             for b in self.blocks
         ]

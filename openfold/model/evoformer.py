@@ -189,7 +189,8 @@ class PairStack(nn.Module):
         use_lma: bool = False,
         inplace_safe: bool = False,
         _mask_trans: bool = True,
-        _attn_chunk_size: Optional[int] = None
+        _attn_chunk_size: Optional[int] = None,
+        use_cuequivariance: Optional[bool] = None,
     ) -> torch.Tensor:
         # DeepMind doesn't mask these transitions in the source, so _mask_trans
         # should be disabled to better approximate the exact activations of
@@ -198,12 +199,16 @@ class PairStack(nn.Module):
 
         if (_attn_chunk_size is None):
             _attn_chunk_size = chunk_size
+            
+        if use_cuequivariance is None:
+            use_cuequivariance = self.tri_mul_out.use_cuequivariance
 
         tmu_update = self.tri_mul_out(
             z,
             mask=pair_mask,
             inplace_safe=inplace_safe,
             _add_with_inplace=True,
+            use_cuequivariance=use_cuequivariance,
         )
         if (not inplace_safe):
             z = z + self.ps_dropout_row_layer(tmu_update)
@@ -217,6 +222,7 @@ class PairStack(nn.Module):
             mask=pair_mask,
             inplace_safe=inplace_safe,
             _add_with_inplace=True,
+            use_cuequivariance=use_cuequivariance,
         )
         if (not inplace_safe):
             z = z + self.ps_dropout_row_layer(tmu_update)
@@ -235,6 +241,7 @@ class PairStack(nn.Module):
                         use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                         use_lma=use_lma,
                         inplace_safe=inplace_safe,
+                        use_cuequivariance=use_cuequivariance,
                     )
                 ),
                 inplace=inplace_safe,
@@ -254,6 +261,7 @@ class PairStack(nn.Module):
                         use_deepspeed_evo_attention=use_deepspeed_evo_attention,
                         use_lma=use_lma,
                         inplace_safe=inplace_safe,
+                        use_cuequivariance=use_cuequivariance,
                     )
                 ),
                 inplace=inplace_safe,

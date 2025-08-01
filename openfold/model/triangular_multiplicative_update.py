@@ -467,7 +467,7 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
         inplace_safe: bool = False,
         _add_with_inplace: bool = False,
         _inplace_chunk_size: Optional[int] = 256,
-        use_cuequivariance: bool = False,
+        use_cuequivariance: Optional[bool] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -487,6 +487,9 @@ class TriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
             )
             return x
 
+        if use_cuequivariance is None:
+            use_cuequivariance = self.use_cuequivariance
+            
         if mask is None:
             mask = z.new_ones(z.shape[:-1])
 
@@ -639,7 +642,7 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
                 inplace_safe: bool = False,
                 _add_with_inplace: bool = False,
                 _inplace_chunk_size: Optional[int] = 256,
-                use_cuequivariance: bool = False,
+                use_cuequivariance: Optional[bool] = None,
                 ) -> torch.Tensor:
         """
         Args:
@@ -659,6 +662,9 @@ class FusedTriangleMultiplicativeUpdate(BaseTriangleMultiplicativeUpdate):
             )
             return x
 
+        if use_cuequivariance is None:
+            use_cuequivariance = self.use_cuequivariance
+            
         if mask is None:
             mask = z.new_ones(z.shape[:-1])
 

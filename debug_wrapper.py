@@ -101,7 +101,8 @@ def debug_wrapper():
     
     # Adjust mask shape to [B, N, 1, 1, K] if provided
     if mask is not None:
-        mask = mask[:, :, -1].unsqueeze(1).expand(-1, seq_len, -1).unsqueeze(2).unsqueeze(3)
+        # Preserve the full 2D mask structure, don't just take the last column
+        mask = mask.unsqueeze(1).expand(-1, seq_len, -1, -1).unsqueeze(3)
     
     print(f"After mask adjustment:")
     print(f"  mask: {mask.shape}")

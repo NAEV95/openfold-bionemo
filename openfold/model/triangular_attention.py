@@ -67,10 +67,13 @@ class TriangleAttention(nn.Module):
         use_deepspeed_evo_attention: bool = False,
         use_lma: bool = False,
         inplace_safe: bool = False,
-        use_cuequivariance: bool = False,
+        use_cuequivariance: Optional[bool] = None,
         cuequivariance_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         "triangle! triangle!"
+        if use_cuequivariance is None:
+            use_cuequivariance = self.use_cuequivariance
+            
         mha_inputs = {
             "q_x": x,
             "kv_x": x,
@@ -100,9 +103,12 @@ class TriangleAttention(nn.Module):
         use_deepspeed_evo_attention: bool = False,
         use_lma: bool = False,
         inplace_safe: bool = False,
-        use_cuequivariance: bool = False,
+        use_cuequivariance: Optional[bool] = None,
     ) -> torch.Tensor:
         """
+        if use_cuequivariance is None:
+            use_cuequivariance = self.use_cuequivariance
+            
         Args:
             x:
                 [*, I, J, C_in] input tensor (e.g. the pair representation)
